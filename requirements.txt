@@ -1,0 +1,3 @@
+platformdirs
+pyzabbix
+pyperclip

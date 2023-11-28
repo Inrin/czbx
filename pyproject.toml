@@ -1,0 +1,27 @@
+[project]
+name = "czbx"
+version = "0.0.1"
+description = "Zabbix Problems Overview TUI"
+requires-python = ">=3.11"
+license.text = "GPLv2"
+readme = "readme.md"
+authors = [
+	{name = "Inrin", email = "inrin@caesia.net"},
+]
+keywords = [ "zabbix", "curses", "tui" ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+	"platformdirs",
+	"pyzabbix",
+	"pyperclip",
+]
+
+[project.scripts]
+czbx = "czbx:main"
+
+[project.urls]
+Homepage = "https://github.com/Inrin/czbx"
+Source = "https://github.com/Inrin/czbx"
+Issues = "https://github.com/Inrin/czbx/issues"
