@@ -226,137 +226,129 @@ def _start_curses(stdscr):
             key = None
             update_zbx_data = True
 
-        if key == "q":
-            break
-        elif key == "KEY_RESIZE":
-            curses.update_lines_cols()
-        elif key == "D":
-            debug = not debug
-        elif key in ["l", "KEY_RIGHT"]:
-            xpos = min(8095, xpos + 1)
-        elif key in ["h", "KEY_LEFT"]:
-            xpos = max(0, xpos - 1)
-        elif key in ["j", "KEY_DOWN"]:
-            lineno = min(lineno + 1, len(problems) - 1)
-            page_before = (lineno - 1) // (curses.LINES - 2) + 1
-            page_after = (lineno) // (curses.LINES - 2) + 1
-            if page_before != page_after:
-                lineno = max(0, lineno - curses.LINES + 2)
-                curses.unget_wch("")
-        elif key in ["k", "KEY_UP"]:
-            lineno = max(0, lineno - 1)
-            page_before = (lineno + 1) // (curses.LINES - 2) + 1
-            page_after = (lineno) // (curses.LINES - 2) + 1
-            if page_before != page_after:
+        match key:
+            case 'q': break
+            case 'KEY_RESIZE': curses.update_lines_cols()
+            case 'D': debug = not debug
+            case 'l' | 'KEY_RIGHT': xpos = min(8095, xpos + 1)
+            case 'h' | 'KEY_LEFT': xpos = max(0, xpos - 1)
+            case 'j' | "KEY_DOWN":
+                lineno = min(lineno + 1, len(zbx_data.problems) - 1)
+                page_before = (lineno - 1) // (curses.LINES - 2) + 1
+                page_after = (lineno) // (curses.LINES - 2) + 1
+                if page_before != page_after:
+                    lineno = max(0, lineno - curses.LINES + 2)
+                    curses.unget_wch("")
+            case 'k' | 'KEY_UP':
+                lineno = max(0, lineno - 1)
+                page_before = (lineno + 1) // (curses.LINES - 2) + 1
+                page_after = (lineno) // (curses.LINES - 2) + 1
+                if page_before != page_after:
+                    ypos = max(0, ypos - curses.LINES + 2)
+            case '0': xpos = 0
+            case '': 
+                if ypos + curses.LINES - 2 < len(zbx_data.problems):
+                    ypos = ypos + curses.LINES - 2
+                    lineno = min(len(zbx_data.problems) - 1, lineno + curses.LINES - 2)
+            case '':
                 ypos = max(0, ypos - curses.LINES + 2)
-        elif key == "0":
-            xpos = 0
-        elif key == "":
-            if ypos + curses.LINES - 2 < len(problems):
-                ypos = ypos + curses.LINES - 2
-                lineno = min(len(problems) - 1, lineno + curses.LINES - 2)
-        elif key == "":
-            ypos = max(0, ypos - curses.LINES + 2)
-            lineno = max(0, lineno - curses.LINES + 2)
-        elif key == "":
-            stdscr.erase()
-            stdscr.addnstr(
-                0,
-                0,
-                "CZBX - Problems Overview " + " " * curses.COLS,
-                curses.COLS,
-                curses.A_STANDOUT,
-            )
-            content.erase()
-            stdscr.refresh()
-        elif key == "r":
-            zbx_data.fetch_data()
-        elif key == "s":
-            host = triggers[problems[lineno]["objectid"]]["hosts"][0]["name"]
-            ssh_cmd = os.getenv("CZBX_SSH_CMD", "ssh")
-            curses.endwin()
-            subprocess.run(f"{ssh_cmd} {host}", shell=True)
-            curses.initscr()
-        elif key == "o":
-            _url = os.getenv("ZABBIX_URL")
-            curses.endwin()
-            webbrowser.open(
-                f"{_url}/tr_events.php?triggerid={problems[lineno]['objectid']}&eventid={problems[lineno]['eventid']}"
-            )
-            curses.initscr()
-            stdscr.clear()
-            stdscr.addnstr(
-                0,
-                0,
-                "CZBX - Problems Overview " + " " * curses.COLS,
-                curses.COLS,
-                curses.A_STANDOUT,
-            )
-            content.clear()
-        elif key == "c":
-            _url = os.getenv("ZABBIX_URL")
-            url = f"{_url}/tr_events.php?triggerid={problems[lineno]['objectid']}&eventid={problems[lineno]['eventid']}"
-            curses.endwin()
-            pyperclip.copy(url)
-            curses.initscr()
-            status_line = f"Copied {url}"
-        elif key == "t":
-            content.move(lineno, 0)
-            if lineno in tagged_lines:
-                tagged_lines.remove(lineno)
-                content.echochar(" ")
-            else:
-                tagged_lines.append(lineno)
-                content.echochar("*")
-            curses.unget_wch("j")
-        elif key == "T":
-            stdscr.addstr(curses.LINES - 1, 0, "Tag problems matching: ")
-            stdscr.clrtoeol()
-            curses.echo()
-            pattern = stdscr.getstr().decode("utf8")
-            curses.noecho()
-            content.move(lineno, 0)
-            content.echochar("*")
-            for idx, p in enumerate(problems):
-                if pattern in p["name"]:
-                    tagged_lines.append(idx)
-        elif key == "":
-            stdscr.addstr(curses.LINES - 1, 0, "Untag problems matching: ")
-            stdscr.clrtoeol()
-            curses.echo()
-            pattern = stdscr.getstr().decode("utf8")
-            curses.noecho()
-            content.move(lineno, 0)
-            content.echochar(" ")
-            for idx, p in enumerate(problems):
-                if pattern in p["name"]:
-                    tagged_lines.remove(idx)
-        elif key == "A":
-            problem = problems[lineno]
-            if problem["acknowledged"] == "1":
-                zbx.event.acknowledge(eventids=problem["eventid"], action=16)
-                status_line = f"Unacknowledge {problem['eventid']}"
-            else:
-                zbx.event.acknowledge(eventids=problem["eventid"], action=2)
-                status_line = f"Acknowledge {problem['eventid']}"
-            zbx_data.fetch_data()
-        elif key == "a":
-            stdscr.addstr(curses.LINES - 1, 0, "ACK Message: ")
-            stdscr.clrtoeol()
-            curses.echo()
-            msg = stdscr.getstr().decode("utf8")
-            curses.noecho()
-            if msg == "":
-                status_line = "Aborted…"
-            else:
-                zbx.event.acknowledge(
-                    eventids=problems[lineno]["eventid"], action=6, message=msg
+                lineno = max(0, lineno - curses.LINES + 2)
+            case '':
+                stdscr.erase()
+                stdscr.addnstr(
+                    0,
+                    0,
+                    "CZBX - Problems Overview " + " " * curses.COLS,
+                    curses.COLS,
+                    curses.A_STANDOUT,
                 )
-            zbx_data.fetch_data()
-        elif key == "V":
-            status_line = __VERSION__
-        elif '?':
-            show_help()
+                content.erase()
+                stdscr.refresh()
+            case 'r': update_zbx_data = True
+            case 's':
+                host = zbx_data.triggers[zbx_data.problems[lineno]["objectid"]]["hosts"][0]["name"]
+                ssh_cmd = os.getenv("CZBX_SSH_CMD", "ssh")
+                curses.endwin()
+                subprocess.run(f"{ssh_cmd} {host}", shell=True)
+                curses.initscr()
+            case 'o':
+                _url = os.getenv("ZABBIX_URL")
+                curses.endwin()
+                webbrowser.open(
+                    f"{_url}/tr_events.php?triggerid={zbx_data.problems[lineno]['objectid']}&eventid={zbx_data.problems[lineno]['eventid']}"
+                )
+                curses.initscr()
+                stdscr.clear()
+                stdscr.addnstr(
+                    0,
+                    0,
+                    "CZBX - Problems Overview " + " " * curses.COLS,
+                    curses.COLS,
+                    curses.A_STANDOUT,
+                )
+                content.clear()
+            case 'c':
+                _url = os.getenv("ZABBIX_URL")
+                url = f"{_url}/tr_events.php?triggerid={zbx_data.problems[lineno]['objectid']}&eventid={zbx_data.problems[lineno]['eventid']}"
+                curses.endwin()
+                pyperclip.copy(url)
+                curses.initscr()
+                status_line = f"Copied {url}"
+            case 't':
+                content.move(lineno, 0)
+                if lineno in tagged_lines:
+                    tagged_lines.remove(lineno)
+                    content.echochar(" ")
+                else:
+                    tagged_lines.append(lineno)
+                    content.echochar("*")
+                curses.unget_wch("j")
+            case 'T':
+                stdscr.addstr(curses.LINES - 1, 0, "Tag problems matching: ")
+                stdscr.clrtoeol()
+                curses.echo()
+                pattern = stdscr.getstr().decode("utf8")
+                curses.noecho()
+                content.move(lineno, 0)
+                content.echochar("*")
+                for idx, p in enumerate(zbx_data.problems):
+                    if pattern in p["name"]:
+                        tagged_lines.append(idx)
+            case '':
+                stdscr.addstr(curses.LINES - 1, 0, "Untag problems matching: ")
+                stdscr.clrtoeol()
+                curses.echo()
+                pattern = stdscr.getstr().decode("utf8")
+                curses.noecho()
+                content.move(lineno, 0)
+                content.echochar(" ")
+                for idx, p in enumerate(zbx_data.problems):
+                    if pattern in p["name"]:
+                        tagged_lines.remove(idx)
+            case 'A':
+                problem = zbx_data.problems[lineno]
+                if problem["acknowledged"] == "1":
+                    zbx.event.acknowledge(eventids=problem["eventid"], action=16)
+                    status_line = f"Unacknowledge {problem['eventid']}"
+                else:
+                    zbx.event.acknowledge(eventids=problem["eventid"], action=2)
+                    status_line = f"Acknowledge {problem['eventid']}"
+                update_zbx_data = True
+            case 'a':
+                stdscr.addstr(curses.LINES - 1, 0, "ACK Message: ")
+                stdscr.clrtoeol()
+                curses.echo()
+                msg = stdscr.getstr().decode("utf8")
+                curses.noecho()
+                if msg == "":
+                    status_line = "Aborted…"
+                else:
+                    zbx.event.acknowledge(
+                        eventids=zbx_data.problems[lineno]["eventid"], action=6, message=msg
+                    )
+                update_zbx_data = True
+            case 'V': status_line = __VERSION__
+            case '?': show_help()
 
         if update_zbx_data or (datetime.now() - zbx_data.last_updated).total_seconds() >= 30.0:
             status_line = "Fetching data…"
