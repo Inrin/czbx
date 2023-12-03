@@ -203,12 +203,25 @@ def _start_curses(stdscr):
     ypos = 0
     lineno = 0
     tagged_lines = []
+    last_updated = datetime.now()
     problems, triggers, max_hostname = fetch_data()
     content = curses.newpad(len(problems) + 1024, 8096)
     update_content(ypos, xpos, lineno, status_line, tagged_lines)
-    while (key := stdscr.getkey()) != "q":
+
+    stdscr.timeout(30000)
+    while True:
+        update_zbx_data = False
         status_line = None
-        if key == "KEY_RESIZE":
+
+        try:
+            key = stdscr.getkey()
+        except curses.error:
+            key = None
+            update_zbx_data = True
+
+        if key == "q":
+            break
+        elif key == "KEY_RESIZE":
             curses.update_lines_cols()
         elif key == "D":
             debug = not debug
@@ -338,6 +351,11 @@ def _start_curses(stdscr):
         elif '?':
             show_help()
 
+        if update_zbx_data or (datetime.now() - last_updated).total_seconds() >= 30.0:
+            last_updated = datetime.now()
+            status_line = "Fetching data…"
+            update_content(ypos, xpos, lineno, status_line, tagged_lines)
+            problems, triggers, max_hostname = fetch_data()
         update_content(ypos, xpos, lineno, status_line, tagged_lines)
 
 
