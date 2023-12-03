@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
+import argparse
 import curses
 from datetime import datetime
 import subprocess
 import os
-import sys
 import webbrowser
 
 import pyperclip
@@ -14,6 +14,20 @@ from help import show_help
 from zabbix import ZabbixData, _init_zabbix
 
 __VERSION__ = "0.1.0"
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Curses Zabbix Problems UI")
+
+    parser.add_argument('-u', '--zabbix-url', help='Zabbix URL')
+    parser.add_argument('-s', '--ssh-cmd', help='SSH command to execute')
+
+    args = parser.parse_args()
+
+    args.zabbix_url = os.getenv('ZABBIX_URL', args.zabbix_url)
+    args.ssh_cmd = os.getenv('CZBX_SSH_CMD', args.ssh_cmd)
+
+    return args
 
 
 def _init_colors():
@@ -38,7 +52,7 @@ def _init_colors():
     curses.init_pair(103, 103, -1)
 
 
-def _start_curses(stdscr):
+def _start_curses(stdscr, args):
     _init_colors()
     curses.curs_set(0)
 
@@ -54,7 +68,6 @@ def _start_curses(stdscr):
 
     zbx = _init_zabbix()
     debug = False
-    description = False
     status_line = None
 
     def update_content(y, x, lineno, status_line, tagged_lines):
@@ -204,12 +217,11 @@ def _start_curses(stdscr):
                 host = zbx_data.triggers[zbx_data.problems[lineno]["objectid"]][
                     "hosts"
                 ][0]["name"]
-                ssh_cmd = os.getenv("CZBX_SSH_CMD", "ssh")
                 curses.endwin()
-                subprocess.run(f"{ssh_cmd} {host}", shell=True)
+                subprocess.run(f"{args.ssh_cmd} {host}", shell=True)
                 curses.initscr()
             case "o":
-                _url = os.getenv("ZABBIX_URL")
+                _url = args.zabbix_url
                 curses.endwin()
                 webbrowser.open(
                     f"{_url}/tr_events.php?triggerid={zbx_data.problems[lineno]['objectid']}&eventid={zbx_data.problems[lineno]['eventid']}"
@@ -225,7 +237,7 @@ def _start_curses(stdscr):
                 )
                 content.clear()
             case "c":
-                _url = os.getenv("ZABBIX_URL")
+                _url = args.zabbix_url
                 url = f"{_url}/tr_events.php?triggerid={zbx_data.problems[lineno]['objectid']}&eventid={zbx_data.problems[lineno]['eventid']}"
                 curses.endwin()
                 pyperclip.copy(url)
@@ -301,8 +313,10 @@ def _start_curses(stdscr):
         update_content(ypos, xpos, lineno, status_line, tagged_lines)
 
 
-def main():
-    curses.wrapper(_start_curses)
+def main() -> None:
+    """ Starts curses ui """
+    args = _parse_args()
+    curses.wrapper(_start_curses, args)
 
 
 if __name__ == "__main__":
