@@ -17,6 +17,58 @@ from help import show_help
 __VERSION__ = "0.0.1"
 
 
+class ZabbixData:
+
+    def __init__(self, api: pyzabbix.ZabbixAPI):
+        self.zbx = api
+        self.tags = self._load_tags()
+        self.fetch_data()
+
+    def _load_tags(self):
+        try:
+            with open(
+                platformdirs.user_config_path("czbx").joinpath("tags.json"),
+                "rt",
+                encoding="utf8",
+            ) as tagfile:
+                tags = json.load(tagfile)
+        except FileNotFoundError:
+            tags = []
+        return tags
+
+
+    def fetch_data(self):
+        self.last_updated = datetime.now()
+
+        problems = self.zbx.problem.get(
+            recent=True,
+            severities=[3, 4, 5],
+            sortfield="eventid",
+            sortorder="DESC",
+            suppressed=False,
+            tags=self.tags,
+            selectTags="extend",
+            time_from=int(datetime.now().timestamp() / 60 / 60 / 24 / 365 / 2),
+        )
+        self.triggers = {
+            t["triggerid"]: t
+            for t in self.zbx.trigger.get(
+                triggerids=[i["objectid"] for i in problems],
+                selectHosts=["name", "status"],
+                selectItems=["status", "lastvalue", "units"],
+            )
+        }
+        self.problems = [
+            p
+            for p in problems
+            if self.triggers[p["objectid"]]["status"] == "0"
+            and self.triggers[p["objectid"]]["hosts"][0]["status"] == "0"
+            and all(map(lambda x: x["status"] == "0", self.triggers[p["objectid"]]["items"]))
+        ]
+
+        self.max_hostname = self.triggers and max(map(len, self.triggers.values())) or 0
+
+
 def _init_colors():
     curses.start_color()
     curses.use_default_colors()
@@ -60,19 +112,6 @@ def _init_zabbix():
     return api
 
 
-def _load_tags():
-    try:
-        with open(
-            platformdirs.user_config_path("czbx").joinpath("tags.json"),
-            "rt",
-            encoding="utf8",
-        ) as tagfile:
-            tags = json.load(tagfile)
-    except FileNotFoundError:
-        tags = []
-    return tags
-
-
 def _start_curses(stdscr):
     _init_colors()
     curses.curs_set(0)
@@ -91,43 +130,12 @@ def _start_curses(stdscr):
     debug = False
     description = False
     status_line = None
-    tags = _load_tags()
-
-    def fetch_data():
-        problems = zbx.problem.get(
-            recent=True,
-            severities=[3, 4, 5],
-            sortfield="eventid",
-            sortorder="DESC",
-            suppressed=False,
-            tags=tags,
-            selectTags="extend",
-            time_from=int(datetime.now().timestamp() / 60 / 60 / 24 / 365 / 2),
-        )
-        triggers = {
-            t["triggerid"]: t
-            for t in zbx.trigger.get(
-                triggerids=[i["objectid"] for i in problems],
-                selectHosts=["name", "status"],
-                selectItems=["status", "lastvalue", "units"],
-            )
-        }
-        problems = [
-            p
-            for p in problems
-            if triggers[p["objectid"]]["status"] == "0"
-            and triggers[p["objectid"]]["hosts"][0]["status"] == "0"
-            and all(map(lambda x: x["status"] == "0", triggers[p["objectid"]]["items"]))
-        ]
-
-        max_hostname = triggers and max(map(len, triggers.values())) or 0
-        return problems, triggers, max_hostname
 
     def update_content(y, x, lineno, status_line, tagged_lines):
         content.move(0, 0)
-        for idx, problem in enumerate(problems):
+        for idx, problem in enumerate(zbx_data.problems):
             attrs = 0
-            trigger = triggers[problem["objectid"]]
+            trigger = zbx_data.triggers[problem["objectid"]]
             if idx == lineno:
                 attrs |= curses.A_STANDOUT
             time = (
@@ -163,14 +171,14 @@ def _start_curses(stdscr):
             content.addstr(f" {rtime: >8}", attrs | curses.color_pair(103))
             pcolor = 102 if status == "RESOLVED" else 101
             content.addstr(f" {status:<9}", attrs | curses.color_pair(pcolor))
-            content.addstr(f"{host:<{max_hostname}} {problem_name}\n", attrs)
+            content.addstr(f"{host:<{zbx_data.max_hostname}} {problem_name}\n", attrs)
 
         opdata = (
             ", ".join(
                 f"{i['lastvalue']}{' '+i['units'] if i['units'] else ''}"
-                for i in triggers[problems[lineno]["objectid"]]["items"]
+                for i in zbx_data.triggers[zbx_data.problems[lineno]["objectid"]]["items"]
             )
-            if len(problems)
+            if len(zbx_data.problems)
             else ""
         )
         stdscr.addstr(0, 30, f"{opdata}", curses.A_STANDOUT)
@@ -179,7 +187,7 @@ def _start_curses(stdscr):
         if status_line:
             stdscr.addstr(curses.LINES - 1, 0, status_line)
         elif debug:
-            content_len = len(problems)
+            content_len = len(zbx_data.problems)
             pages = int(content_len / (curses.LINES - 2)) + 1
             page = lineno // (curses.LINES - 2) + 1
             stdscr.addstr(
@@ -188,7 +196,7 @@ def _start_curses(stdscr):
                 f"X: {xpos} Y: {ypos} CL: {content_len} COLS: {curses.COLS} LINES: {curses.LINES}, LINE: {lineno}, PAGE: {page}/{pages}",
             )
         else:
-            tags = len(problems) and problems[lineno]["tags"] or []
+            tags = len(zbx_data.problems) and zbx_data.problems[lineno]["tags"] or []
             stdscr.addnstr(
                 curses.LINES - 1,
                 0,
@@ -203,9 +211,8 @@ def _start_curses(stdscr):
     ypos = 0
     lineno = 0
     tagged_lines = []
-    last_updated = datetime.now()
-    problems, triggers, max_hostname = fetch_data()
-    content = curses.newpad(len(problems) + 1024, 8096)
+    zbx_data = ZabbixData(zbx)
+    content = curses.newpad(len(zbx_data.problems) + 1024, 8096)
     update_content(ypos, xpos, lineno, status_line, tagged_lines)
 
     stdscr.timeout(30000)
@@ -263,7 +270,7 @@ def _start_curses(stdscr):
             content.erase()
             stdscr.refresh()
         elif key == "r":
-            problems, triggers, max_hostname = fetch_data()
+            zbx_data.fetch_data()
         elif key == "s":
             host = triggers[problems[lineno]["objectid"]]["hosts"][0]["name"]
             ssh_cmd = os.getenv("CZBX_SSH_CMD", "ssh")
@@ -332,7 +339,7 @@ def _start_curses(stdscr):
             else:
                 zbx.event.acknowledge(eventids=problem["eventid"], action=2)
                 status_line = f"Acknowledge {problem['eventid']}"
-            problems, triggers, max_hostname = fetch_data()
+            zbx_data.fetch_data()
         elif key == "a":
             stdscr.addstr(curses.LINES - 1, 0, "ACK Message: ")
             stdscr.clrtoeol()
@@ -345,17 +352,16 @@ def _start_curses(stdscr):
                 zbx.event.acknowledge(
                     eventids=problems[lineno]["eventid"], action=6, message=msg
                 )
-            problems, triggers, max_hostname = fetch_data()
+            zbx_data.fetch_data()
         elif key == "V":
             status_line = __VERSION__
         elif '?':
             show_help()
 
-        if update_zbx_data or (datetime.now() - last_updated).total_seconds() >= 30.0:
-            last_updated = datetime.now()
+        if update_zbx_data or (datetime.now() - zbx_data.last_updated).total_seconds() >= 30.0:
             status_line = "Fetching data…"
             update_content(ypos, xpos, lineno, status_line, tagged_lines)
-            problems, triggers, max_hostname = fetch_data()
+            zbx_data.fetch_data()
         update_content(ypos, xpos, lineno, status_line, tagged_lines)
 
 
