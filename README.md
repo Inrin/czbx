@@ -57,7 +57,7 @@ An example would look like:
 Just start it with `czbx` or `./env/bin/python czbx.py`.
 Make sure `ZABBIX_URL` and `ZABBIX_TOKEN` environment variables are set!
 
-At the moment Zabbix data is not refreshed automatically in the background. Press `r` to refresh it.
+Zabbix data is refreshed every 30s. You can press `r` to refresh early.
 
 ## Navigation and Keybindings
 Normal navigation via `h,j,k,l` and arrow keys is supported.
@@ -71,7 +71,7 @@ For a complete list of key bindings please see:
 - `CTRL-F`: move one page down
 - `CTRL-B`: move one page up
 - `CTRL-L`: redraw screen
-- `r`: refresh Zabbix data
+- `r`: refresh Zabbix data (Default: refreshes every 30s)
 - `s`: execute `ssh HOST` or `$CZBX_SSH_CMD HOST` if set. Use HOST on currently highlighted problem
 - `o`: open Zabbix problem in webbrowser (Buggy at the moment)
 - `c`: copy Zabbix problem URL into clipboard and show the link in status line
@@ -81,6 +81,8 @@ For a complete list of key bindings please see:
 - `a`: prompt for acknowledgement message and ack the highlighted problem with it
 - `A`: toggle acknowledgement flag on the highlighted problem
 - `V`: print current version in status line
+- `?`: Show keybindings in a popup
+- `q`: Quit CZBX
 
 ## Known issues
 - Opening a problem in webbrowser might distort the terminal screen
