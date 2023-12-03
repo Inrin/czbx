@@ -12,6 +12,8 @@ import platformdirs
 import pyperclip
 import pyzabbix
 
+from help import show_help
+
 __VERSION__ = "0.0.1"
 
 
@@ -333,6 +335,8 @@ def _start_curses(stdscr):
             problems, triggers, max_hostname = fetch_data()
         elif key == "V":
             status_line = __VERSION__
+        elif '?':
+            show_help()
 
         update_content(ypos, xpos, lineno, status_line, tagged_lines)
 
