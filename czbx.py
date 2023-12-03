@@ -18,7 +18,6 @@ __VERSION__ = "0.0.1"
 
 
 class ZabbixData:
-
     def __init__(self, api: pyzabbix.ZabbixAPI):
         self.zbx = api
         self.tags = self._load_tags()
@@ -35,7 +34,6 @@ class ZabbixData:
         except FileNotFoundError:
             tags = []
         return tags
-
 
     def fetch_data(self):
         self.last_updated = datetime.now()
@@ -63,7 +61,9 @@ class ZabbixData:
             for p in problems
             if self.triggers[p["objectid"]]["status"] == "0"
             and self.triggers[p["objectid"]]["hosts"][0]["status"] == "0"
-            and all(map(lambda x: x["status"] == "0", self.triggers[p["objectid"]]["items"]))
+            and all(
+                map(lambda x: x["status"] == "0", self.triggers[p["objectid"]]["items"])
+            )
         ]
 
         self.max_hostname = self.triggers and max(map(len, self.triggers.values())) or 0
@@ -176,7 +176,9 @@ def _start_curses(stdscr):
         opdata = (
             ", ".join(
                 f"{i['lastvalue']}{' '+i['units'] if i['units'] else ''}"
-                for i in zbx_data.triggers[zbx_data.problems[lineno]["objectid"]]["items"]
+                for i in zbx_data.triggers[zbx_data.problems[lineno]["objectid"]][
+                    "items"
+                ]
             )
             if len(zbx_data.problems)
             else ""
@@ -227,33 +229,39 @@ def _start_curses(stdscr):
             update_zbx_data = True
 
         match key:
-            case 'q': break
-            case 'KEY_RESIZE': curses.update_lines_cols()
-            case 'D': debug = not debug
-            case 'l' | 'KEY_RIGHT': xpos = min(8095, xpos + 1)
-            case 'h' | 'KEY_LEFT': xpos = max(0, xpos - 1)
-            case 'j' | "KEY_DOWN":
+            case "q":
+                break
+            case "KEY_RESIZE":
+                curses.update_lines_cols()
+            case "D":
+                debug = not debug
+            case "l" | "KEY_RIGHT":
+                xpos = min(8095, xpos + 1)
+            case "h" | "KEY_LEFT":
+                xpos = max(0, xpos - 1)
+            case "j" | "KEY_DOWN":
                 lineno = min(lineno + 1, len(zbx_data.problems) - 1)
                 page_before = (lineno - 1) // (curses.LINES - 2) + 1
                 page_after = (lineno) // (curses.LINES - 2) + 1
                 if page_before != page_after:
                     lineno = max(0, lineno - curses.LINES + 2)
                     curses.unget_wch("")
-            case 'k' | 'KEY_UP':
+            case "k" | "KEY_UP":
                 lineno = max(0, lineno - 1)
                 page_before = (lineno + 1) // (curses.LINES - 2) + 1
                 page_after = (lineno) // (curses.LINES - 2) + 1
                 if page_before != page_after:
                     ypos = max(0, ypos - curses.LINES + 2)
-            case '0': xpos = 0
-            case '': 
+            case "0":
+                xpos = 0
+            case "":
                 if ypos + curses.LINES - 2 < len(zbx_data.problems):
                     ypos = ypos + curses.LINES - 2
                     lineno = min(len(zbx_data.problems) - 1, lineno + curses.LINES - 2)
-            case '':
+            case "":
                 ypos = max(0, ypos - curses.LINES + 2)
                 lineno = max(0, lineno - curses.LINES + 2)
-            case '':
+            case "":
                 stdscr.erase()
                 stdscr.addnstr(
                     0,
@@ -264,14 +272,17 @@ def _start_curses(stdscr):
                 )
                 content.erase()
                 stdscr.refresh()
-            case 'r': update_zbx_data = True
-            case 's':
-                host = zbx_data.triggers[zbx_data.problems[lineno]["objectid"]]["hosts"][0]["name"]
+            case "r":
+                update_zbx_data = True
+            case "s":
+                host = zbx_data.triggers[zbx_data.problems[lineno]["objectid"]][
+                    "hosts"
+                ][0]["name"]
                 ssh_cmd = os.getenv("CZBX_SSH_CMD", "ssh")
                 curses.endwin()
                 subprocess.run(f"{ssh_cmd} {host}", shell=True)
                 curses.initscr()
-            case 'o':
+            case "o":
                 _url = os.getenv("ZABBIX_URL")
                 curses.endwin()
                 webbrowser.open(
@@ -287,14 +298,14 @@ def _start_curses(stdscr):
                     curses.A_STANDOUT,
                 )
                 content.clear()
-            case 'c':
+            case "c":
                 _url = os.getenv("ZABBIX_URL")
                 url = f"{_url}/tr_events.php?triggerid={zbx_data.problems[lineno]['objectid']}&eventid={zbx_data.problems[lineno]['eventid']}"
                 curses.endwin()
                 pyperclip.copy(url)
                 curses.initscr()
                 status_line = f"Copied {url}"
-            case 't':
+            case "t":
                 content.move(lineno, 0)
                 if lineno in tagged_lines:
                     tagged_lines.remove(lineno)
@@ -303,7 +314,7 @@ def _start_curses(stdscr):
                     tagged_lines.append(lineno)
                     content.echochar("*")
                 curses.unget_wch("j")
-            case 'T':
+            case "T":
                 stdscr.addstr(curses.LINES - 1, 0, "Tag problems matching: ")
                 stdscr.clrtoeol()
                 curses.echo()
@@ -314,7 +325,7 @@ def _start_curses(stdscr):
                 for idx, p in enumerate(zbx_data.problems):
                     if pattern in p["name"]:
                         tagged_lines.append(idx)
-            case '':
+            case "":
                 stdscr.addstr(curses.LINES - 1, 0, "Untag problems matching: ")
                 stdscr.clrtoeol()
                 curses.echo()
@@ -325,7 +336,7 @@ def _start_curses(stdscr):
                 for idx, p in enumerate(zbx_data.problems):
                     if pattern in p["name"]:
                         tagged_lines.remove(idx)
-            case 'A':
+            case "A":
                 problem = zbx_data.problems[lineno]
                 if problem["acknowledged"] == "1":
                     zbx.event.acknowledge(eventids=problem["eventid"], action=16)
@@ -334,7 +345,7 @@ def _start_curses(stdscr):
                     zbx.event.acknowledge(eventids=problem["eventid"], action=2)
                     status_line = f"Acknowledge {problem['eventid']}"
                 update_zbx_data = True
-            case 'a':
+            case "a":
                 stdscr.addstr(curses.LINES - 1, 0, "ACK Message: ")
                 stdscr.clrtoeol()
                 curses.echo()
@@ -344,13 +355,20 @@ def _start_curses(stdscr):
                     status_line = "Aborted…"
                 else:
                     zbx.event.acknowledge(
-                        eventids=zbx_data.problems[lineno]["eventid"], action=6, message=msg
+                        eventids=zbx_data.problems[lineno]["eventid"],
+                        action=6,
+                        message=msg,
                     )
                 update_zbx_data = True
-            case 'V': status_line = __VERSION__
-            case '?': show_help()
+            case "V":
+                status_line = __VERSION__
+            case "?":
+                show_help()
 
-        if update_zbx_data or (datetime.now() - zbx_data.last_updated).total_seconds() >= 30.0:
+        if (
+            update_zbx_data
+            or (datetime.now() - zbx_data.last_updated).total_seconds() >= 30.0
+        ):
             status_line = "Fetching data…"
             update_content(ypos, xpos, lineno, status_line, tagged_lines)
             zbx_data.fetch_data()
