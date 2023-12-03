@@ -12,6 +12,7 @@ import pyzabbix
 
 from help import show_help
 from zabbix import ZabbixData, _init_zabbix
+from colors import _init_colors
 
 __VERSION__ = "0.1.0"
 
@@ -19,37 +20,15 @@ __VERSION__ = "0.1.0"
 def _parse_args():
     parser = argparse.ArgumentParser(description="Curses Zabbix Problems UI")
 
-    parser.add_argument('-u', '--zabbix-url', help='Zabbix URL')
-    parser.add_argument('-s', '--ssh-cmd', help='SSH command to execute')
+    parser.add_argument("-u", "--zabbix-url", help="Zabbix URL")
+    parser.add_argument("-s", "--ssh-cmd", help="SSH command to execute")
 
     args = parser.parse_args()
 
-    args.zabbix_url = os.getenv('ZABBIX_URL', args.zabbix_url)
-    args.ssh_cmd = os.getenv('CZBX_SSH_CMD', args.ssh_cmd)
+    args.zabbix_url = os.getenv("ZABBIX_URL", args.zabbix_url)
+    args.ssh_cmd = os.getenv("CZBX_SSH_CMD", args.ssh_cmd)
 
     return args
-
-
-def _init_colors():
-    curses.start_color()
-    curses.use_default_colors()
-    rgb = lambda r, g, b: (r * 1000 // 255, g * 1000 // 255, b * 1000 // 255)
-    curses.init_color(2, *rgb(255, 200, 89))
-    curses.init_color(3, *rgb(255, 160, 89))
-    curses.init_color(4, *rgb(233, 118, 89))
-    curses.init_color(5, *rgb(228, 89, 89))
-    curses.init_color(101, *rgb(198, 40, 40))
-    curses.init_color(102, *rgb(102, 187, 106))
-    curses.init_color(103, *rgb(71, 150, 196))
-    curses.init_pair(0, 0, -1)
-    curses.init_pair(1, 1, -1)
-    curses.init_pair(2, 2, -1)
-    curses.init_pair(3, 3, -1)
-    curses.init_pair(4, 4, -1)
-    curses.init_pair(5, 5, -1)
-    curses.init_pair(101, 100, -1)
-    curses.init_pair(102, 102, -1)
-    curses.init_pair(103, 103, -1)
 
 
 def _start_curses(stdscr, args):
@@ -314,7 +293,7 @@ def _start_curses(stdscr, args):
 
 
 def main() -> None:
-    """ Starts curses ui """
+    """Starts curses ui"""
     args = _parse_args()
     curses.wrapper(_start_curses, args)
 
